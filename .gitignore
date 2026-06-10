@@ -1,0 +1,7 @@
+.DS_Store
+ai-code-index
+dist/
+coverage/
+.ai-code-index/index/
+.ai-code-index/tags
+.ai-code-index/repo.meta.json
