@@ -324,12 +324,20 @@ func cmdDoctor(args []string) error {
 	}
 	indexDir := filepath.Join(root, ".ai-code-index", "index")
 	if hasZoektIndex(indexDir) {
-		fmt.Printf("[OK] Zoekt index: %s\n", indexDir)
+		if textIndexFresh(root) {
+			fmt.Printf("[OK] Zoekt index fresh: %s\n", indexDir)
+		} else {
+			fmt.Printf("[WARN] Zoekt index stale: %s (search will use live rg)\n", indexDir)
+		}
 	} else {
 		fmt.Printf("[WARN] Zoekt index missing: %s\n", indexDir)
 	}
 	if info, err := os.Stat(filepath.Join(root, ".ai-code-index", "tags")); err == nil && info.Size() > 0 {
-		fmt.Println("[OK] ctags symbols:", filepath.Join(root, ".ai-code-index", "tags"))
+		if symbolIndexFresh(root) {
+			fmt.Println("[OK] ctags symbols fresh:", filepath.Join(root, ".ai-code-index", "tags"))
+		} else {
+			fmt.Println("[WARN] ctags symbols stale; next symbol lookup will refresh them")
+		}
 	} else {
 		fmt.Println("[WARN] ctags symbols missing")
 	}
