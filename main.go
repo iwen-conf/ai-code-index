@@ -491,6 +491,8 @@ func runReindex(root string) error {
 	}
 
 	didWork := false
+	textIndexed := false
+	symbolIndexed := false
 	if zoektIndex, ok := lookPath("zoekt-index"); ok {
 		if err := removeZoektShards(indexDir); err != nil {
 			return err
@@ -507,29 +509,20 @@ func runReindex(root string) error {
 		}
 		fmt.Println("Zoekt index:", indexDir)
 		didWork = true
+		textIndexed = true
 	} else {
 		fmt.Fprintln(os.Stderr, "zoekt-index is not installed; skipped text/code index")
 	}
 
-	if ctags, ok := lookCtags(); ok {
-		args := []string{
-			"-R",
-			"-f", tagsFile,
-			"--tag-relative=always",
+	if refreshed, err := rebuildTags(root); err != nil {
+		if !didWork {
+			return err
 		}
-		for _, dir := range ignoredDirs {
-			args = append(args, "--exclude="+dir)
-		}
-		args = append(args, ".")
-		if err := run(ctags, args, root); err != nil {
-			if !didWork {
-				return err
-			}
-			fmt.Fprintf(os.Stderr, "ctags failed; kept Zoekt index and skipped symbol refresh: %v\n", err)
-		} else {
-			fmt.Println("Ctags symbols:", tagsFile)
-			didWork = true
-		}
+		fmt.Fprintf(os.Stderr, "ctags failed; kept Zoekt index and skipped symbol refresh: %v\n", err)
+	} else if refreshed {
+		fmt.Println("Ctags symbols:", tagsFile)
+		didWork = true
+		symbolIndexed = true
 	} else {
 		fmt.Fprintln(os.Stderr, "Universal/Exuberant ctags is not installed; skipped symbol index")
 	}
@@ -537,7 +530,48 @@ func runReindex(root string) error {
 	if !didWork {
 		return errors.New("no indexer was available; install zoekt-index or ctags")
 	}
+	if err := markFresh(root, textIndexed, symbolIndexed); err != nil {
+		return fmt.Errorf("index built but freshness metadata could not be recorded: %w", err)
+	}
 	return nil
+}
+
+func rebuildTags(root string) (bool, error) {
+	ctags, ok := lookCtags()
+	if !ok {
+		return false, nil
+	}
+
+	dir := filepath.Join(root, ".ai-code-index")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return false, err
+	}
+	temporary, err := os.CreateTemp(dir, ".tags.*")
+	if err != nil {
+		return false, err
+	}
+	temporaryPath := temporary.Name()
+	if err := temporary.Close(); err != nil {
+		return false, err
+	}
+	defer os.Remove(temporaryPath)
+
+	args := []string{
+		"-R",
+		"-f", temporaryPath,
+		"--tag-relative=always",
+	}
+	for _, ignored := range ignoredDirs {
+		args = append(args, "--exclude="+ignored)
+	}
+	args = append(args, ".")
+	if err := run(ctags, args, root); err != nil {
+		return false, err
+	}
+	if err := os.Rename(temporaryPath, filepath.Join(dir, "tags")); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func removeZoektShards(indexDir string) error {
