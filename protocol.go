@@ -414,11 +414,11 @@ func cmdStats(args []string) error {
 	}
 
 	return json.NewEncoder(os.Stdout).Encode(machineStatsResponse{
-		ProtocolVersion: protocolVersion,
-		Mode:            "stats",
-		Root:            root,
-		FileCount:       len(files),
-		SymbolCount:     symbolCount,
+		ProtocolVersion:  protocolVersion,
+		Mode:             "stats",
+		Root:             root,
+		FileCount:        len(files),
+		SymbolCount:      symbolCount,
 		ZoektShards:      len(shards),
 		IndexPresent:     len(shards) > 0,
 		TextIndexFresh:   len(shards) > 0 && textIndexFresh(root),
