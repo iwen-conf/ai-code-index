@@ -171,13 +171,15 @@ func cmdSearch(args []string) error {
 	}
 
 	indexDir := filepath.Join(root, ".ai-code-index", "index")
-	if hasZoektIndex(indexDir) {
+	if hasZoektIndex(indexDir) && textIndexFresh(root) {
 		if zoekt, ok := lookPath("zoekt"); ok {
 			return run(zoekt, append([]string{"-index_dir", indexDir}, queryArgs...), root)
 		}
-		fmt.Fprintln(os.Stderr, "zoekt search binary not found; falling back to rg")
+		fmt.Fprintln(os.Stderr, "zoekt search binary not found; falling back to live rg")
+	} else if hasZoektIndex(indexDir) {
+		fmt.Fprintln(os.Stderr, "Zoekt index is stale; falling back to live rg")
 	} else {
-		fmt.Fprintln(os.Stderr, "no Zoekt index found; falling back to rg")
+		fmt.Fprintln(os.Stderr, "no Zoekt index found; falling back to live rg")
 	}
 
 	rg, ok := lookPath("rg")
@@ -236,6 +238,19 @@ func cmdSymbols(args []string) error {
 	root, err := resolveRoot(*rootFlag)
 	if err != nil {
 		return err
+	}
+	if !symbolIndexFresh(root) {
+		refreshed, refreshErr := rebuildTags(root)
+		if refreshErr != nil {
+			return fmt.Errorf("symbol index is stale and could not be refreshed: %w", refreshErr)
+		}
+		if !refreshed {
+			return errors.New("symbol index is stale and ctags is not available")
+		}
+		if err := markFresh(root, false, true); err != nil {
+			return fmt.Errorf("symbol index refreshed but freshness metadata could not be updated: %w", err)
+		}
+		fmt.Fprintln(os.Stderr, "symbol index was stale; refreshed ctags before searching")
 	}
 	tagsFile := filepath.Join(root, ".ai-code-index", "tags")
 	f, err := os.Open(tagsFile)
@@ -424,6 +439,7 @@ Generated index files are ignored by Git. The helpers use local tools only and d
 			content: `/index/
 /tags
 /repo.meta.json
+/freshness.json
 `,
 		},
 	}
@@ -655,7 +671,8 @@ func agentRulesBlock() string {
 		"- 广泛代码检索必须优先使用 `.ai-code-index/search.sh \"query\"`；只有索引缺失、过期或结果不足时，才回退到 `rg` / `grep`。",
 		"- 查找语法形态、调用模式、控制流或批量重构目标时，优先使用 `.ai-code-index/struct-search.sh <language> '<pattern>'`。",
 		"- 查找函数、类、接口、结构体等定义或符号列表时，优先使用 `.ai-code-index/symbols.sh \"SymbolName\"`。",
-		"- 每次修改代码、配置或文档后，必须运行 `.ai-code-index/reindex.sh`（或 `ai-code-index reindex`）更新本地索引，再继续依赖索引检索或交付。",
+		"- 如果运行环境提供 `local_code_search`，优先使用它；否则使用 `.ai-code-index/search.sh`、`.ai-code-index/struct-search.sh` 和 `.ai-code-index/symbols.sh`。",
+		"- 工具会检测索引是否过期：文本索引过期时自动回退实时 `rg`，符号索引过期时自动刷新 ctags；需要恢复 Zoekt 性能时再运行 `.ai-code-index/reindex.sh`。",
 		"- 检索和索引必须保持本地化；除非用户明确要求，不使用远程 GraphRAG、外部向量库、付费索引或长期语义记忆服务。",
 		"<!-- ai-code-index:end -->",
 		"",
