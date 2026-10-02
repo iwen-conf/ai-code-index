@@ -115,7 +115,6 @@ func TestMachineLimitAndKindAliases(t *testing.T) {
 	}
 }
 
-
 func TestFreshnessBecomesStaleAfterFileChange(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o644); err != nil {
