@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-var version = "0.1.0"
+var version = "0.2.0"
 
 var ignoredDirs = []string{
 	".git",
@@ -58,8 +58,18 @@ func main() {
 		err = cmdInit(os.Args[2:])
 	case "reindex":
 		err = cmdReindex(os.Args[2:])
+	case "capabilities":
+		err = cmdCapabilities(os.Args[2:])
 	case "search":
 		err = cmdSearch(os.Args[2:])
+	case "symbol":
+		err = cmdSymbol(os.Args[2:])
+	case "files":
+		err = cmdFiles(os.Args[2:])
+	case "ast":
+		err = cmdAST(os.Args[2:])
+	case "stats":
+		err = cmdStats(os.Args[2:])
 	case "struct-search":
 		err = cmdStructSearch(os.Args[2:])
 	case "symbols":
@@ -89,7 +99,12 @@ Local repository indexing helper for AI coding agents.
 Usage:
   ai-code-index init [--root DIR] [--force] [--reindex]
   ai-code-index reindex [--root DIR]
-  ai-code-index search [--root DIR] "query" [paths...]
+  ai-code-index capabilities [--json]
+  ai-code-index search [--root DIR] [--format json] [--max N] [--context N] "query" [paths...]
+  ai-code-index symbol --format json [--root DIR] [--kind KIND] [--exact] "query"
+  ai-code-index files --format json [--root DIR] [--max N] [query]
+  ai-code-index ast --format json [--root DIR] --lang LANGUAGE [--max N] '<pattern>'
+  ai-code-index stats --format json [--root DIR]
   ai-code-index struct-search [--root DIR] <language> '<pattern>' [paths...]
   ai-code-index symbols [--root DIR] [query]
   ai-code-index doctor [--root DIR]
@@ -131,9 +146,14 @@ func cmdReindex(args []string) error {
 }
 
 func cmdSearch(args []string) error {
-	fs := flag.NewFlagSet("search", flag.ExitOnError)
+	fs := flag.NewFlagSet("search", flag.ContinueOnError)
 	rootFlag := fs.String("root", "", "repository root")
-	_ = fs.Parse(args)
+	formatFlag := fs.String("format", "", "output format (json for machine protocol)")
+	maxFlag := fs.Int("max", defaultMachineLimit, "maximum machine-protocol results")
+	contextFlag := fs.Int("context", 0, "context lines for machine-protocol search")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	queryArgs := fs.Args()
 	if len(queryArgs) == 0 {
 		return errors.New(`usage: ai-code-index search "query" [paths...]`)
@@ -142,6 +162,12 @@ func cmdSearch(args []string) error {
 	root, err := resolveRoot(*rootFlag)
 	if err != nil {
 		return err
+	}
+	if *formatFlag != "" {
+		if *formatFlag != "json" {
+			return fmt.Errorf("unsupported search format %q; expected json", *formatFlag)
+		}
+		return runMachineSearch(root, queryArgs, *maxFlag, *contextFlag)
 	}
 
 	indexDir := filepath.Join(root, ".ai-code-index", "index")
