@@ -64,6 +64,14 @@ ai-code-index stats --format json
 
 `capabilities --json` reports `name: "ai-code-index"` and `protocol_version: 1`. Clients should complete that handshake before exposing agent-facing search tools.
 
+### Freshness behavior
+
+- If the Zoekt index matches the current working tree, text search uses Zoekt.
+- If files changed after indexing, text search automatically falls back to live `rg` instead of returning stale results.
+- If the ctags symbol index is stale, the next symbol lookup refreshes ctags before searching.
+- `stats --format json` reports `text_index_fresh` and `symbol_index_fresh`.
+- Run `ai-code-index reindex` when you want indexed Zoekt performance again after edits.
+
 ## Agent Rules
 
 Install or update global Codex, Claude, and Gemini rules:
