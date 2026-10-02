@@ -66,15 +66,17 @@ type machineFilesResponse struct {
 }
 
 type machineStatsResponse struct {
-	ProtocolVersion int             `json:"protocol_version"`
-	Mode            string          `json:"mode"`
-	Root            string          `json:"root"`
-	FileCount       int             `json:"file_count"`
-	SymbolCount     int             `json:"symbol_count"`
-	ZoektShards     int             `json:"zoekt_shards"`
-	IndexPresent    bool            `json:"index_present"`
-	TagsPresent     bool            `json:"tags_present"`
-	Tools           map[string]bool `json:"tools"`
+	ProtocolVersion  int             `json:"protocol_version"`
+	Mode             string          `json:"mode"`
+	Root             string          `json:"root"`
+	FileCount        int             `json:"file_count"`
+	SymbolCount      int             `json:"symbol_count"`
+	ZoektShards      int             `json:"zoekt_shards"`
+	IndexPresent     bool            `json:"index_present"`
+	TextIndexFresh   bool            `json:"text_index_fresh"`
+	TagsPresent      bool            `json:"tags_present"`
+	SymbolIndexFresh bool            `json:"symbol_index_fresh"`
+	Tools            map[string]bool `json:"tools"`
 }
 
 func cmdCapabilities(args []string) error {
@@ -125,7 +127,7 @@ func runMachineSearch(root string, queryArgs []string, maxResults int, contextLi
 	}
 
 	indexDir := filepath.Join(root, ".ai-code-index", "index")
-	if hasZoektIndex(indexDir) {
+	if hasZoektIndex(indexDir) && textIndexFresh(root) {
 		if zoekt, ok := lookPath("zoekt"); ok {
 			stdout, stderr, code, err := runCaptured(
 				zoekt,
@@ -205,6 +207,18 @@ func cmdSymbol(args []string) error {
 	root, err := resolveRoot(*rootFlag)
 	if err != nil {
 		return err
+	}
+	if !symbolIndexFresh(root) {
+		refreshed, refreshErr := rebuildTags(root)
+		if refreshErr != nil {
+			return fmt.Errorf("symbol index is stale and could not be refreshed: %w", refreshErr)
+		}
+		if !refreshed {
+			return errors.New("symbol index is stale and ctags is not available")
+		}
+		if err := markFresh(root, false, true); err != nil {
+			return fmt.Errorf("symbol index refreshed but freshness metadata could not be updated: %w", err)
+		}
 	}
 
 	tagsFile := filepath.Join(root, ".ai-code-index", "tags")
@@ -405,10 +419,12 @@ func cmdStats(args []string) error {
 		Root:            root,
 		FileCount:       len(files),
 		SymbolCount:     symbolCount,
-		ZoektShards:     len(shards),
-		IndexPresent:    len(shards) > 0,
-		TagsPresent:     tagsPresent,
-		Tools:           tools,
+		ZoektShards:      len(shards),
+		IndexPresent:     len(shards) > 0,
+		TextIndexFresh:   len(shards) > 0 && textIndexFresh(root),
+		TagsPresent:      tagsPresent,
+		SymbolIndexFresh: tagsPresent && symbolIndexFresh(root),
+		Tools:            tools,
 	})
 }
 
