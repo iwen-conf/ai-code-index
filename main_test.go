@@ -75,7 +75,6 @@ func TestUpsertMarkedBlockIsIdempotent(t *testing.T) {
 	}
 }
 
-
 func TestProtocolV1Capabilities(t *testing.T) {
 	response := capabilitiesResponse{
 		Name:            "ai-code-index",
