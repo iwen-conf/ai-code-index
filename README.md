@@ -48,6 +48,22 @@ ai-code-index doctor [--root DIR]
 ai-code-index install-agent-rules [--home DIR] [--dry-run]
 ```
 
+
+## Machine Protocol v1
+
+KAG and other coding agents can use the stable JSON protocol instead of parsing the human CLI:
+
+```bash
+ai-code-index capabilities --json
+ai-code-index search --format json --max 50 --context 2 "query"
+ai-code-index symbol --format json --exact "SymbolName"
+ai-code-index files --format json "auth"
+ai-code-index ast --format json --lang rust 'fn $NAME()'
+ai-code-index stats --format json
+```
+
+`capabilities --json` reports `name: "ai-code-index"` and `protocol_version: 1`. Clients should complete that handshake before exposing agent-facing search tools.
+
 ## Agent Rules
 
 Install or update global Codex, Claude, and Gemini rules:
