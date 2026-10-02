@@ -114,3 +114,51 @@ func TestMachineLimitAndKindAliases(t *testing.T) {
 		t.Fatal("struct should not match ctags kind f")
 	}
 }
+
+
+func TestFreshnessBecomesStaleAfterFileChange(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := markFresh(root, true, true); err != nil {
+		t.Fatal(err)
+	}
+	if !textIndexFresh(root) || !symbolIndexFresh(root) {
+		t.Fatal("freshly recorded indexes should be fresh")
+	}
+
+	if err := os.WriteFile(
+		filepath.Join(root, "main.go"),
+		[]byte("package main\n\nfunc changed() {}\n"),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if textIndexFresh(root) || symbolIndexFresh(root) {
+		t.Fatal("file changes must invalidate both index components")
+	}
+}
+
+func TestFreshnessTracksTextAndSymbolSeparately(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "service.go")
+	if err := os.WriteFile(path, []byte("package service\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := markFresh(root, true, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("package service\n\nfunc New() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := markFresh(root, false, true); err != nil {
+		t.Fatal(err)
+	}
+	if textIndexFresh(root) {
+		t.Fatal("refreshing symbols must not mark a stale text index fresh")
+	}
+	if !symbolIndexFresh(root) {
+		t.Fatal("symbol refresh should mark only the symbol index fresh")
+	}
+}
