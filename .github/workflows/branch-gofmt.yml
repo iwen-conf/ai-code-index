@@ -1,0 +1,32 @@
+name: branch-gofmt
+
+on:
+  push:
+    branches:
+      - kag/freshness-fallback
+
+permissions:
+  contents: write
+
+jobs:
+  gofmt:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: kag/freshness-fallback
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      - name: Apply gofmt
+        run: |
+          gofmt -w .
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- '*.go'
+          git commit -m "Apply gofmt"
+          git push origin HEAD:kag/freshness-fallback
