@@ -74,3 +74,43 @@ func TestUpsertMarkedBlockIsIdempotent(t *testing.T) {
 		t.Fatalf("existing content was not preserved:\n%s", text)
 	}
 }
+
+func TestProtocolV1Capabilities(t *testing.T) {
+	response := capabilitiesResponse{
+		Name:            "ai-code-index",
+		ProtocolVersion: protocolVersion,
+		Version:         version,
+		Capabilities: capabilityFlags{
+			Search: true,
+			Symbol: true,
+			Files:  true,
+			AST:    true,
+			Stats:  true,
+		},
+		Formats: []string{"json"},
+	}
+	if response.Name != "ai-code-index" {
+		t.Fatalf("unexpected protocol name %q", response.Name)
+	}
+	if response.ProtocolVersion != 1 {
+		t.Fatalf("unexpected protocol version %d", response.ProtocolVersion)
+	}
+	if !response.Capabilities.Search || !response.Capabilities.Symbol ||
+		!response.Capabilities.Files || !response.Capabilities.AST ||
+		!response.Capabilities.Stats {
+		t.Fatalf("required protocol capability missing: %+v", response.Capabilities)
+	}
+}
+
+func TestMachineLimitAndKindAliases(t *testing.T) {
+	lines, truncated := limitOutputLines("a\nb\nc\n", 2)
+	if !truncated || len(lines) != 2 || lines[0] != "a" || lines[1] != "b" {
+		t.Fatalf("unexpected line limit result: %#v truncated=%v", lines, truncated)
+	}
+	if !kindMatches("function", "f") {
+		t.Fatal("function should match ctags kind f")
+	}
+	if kindMatches("struct", "f") {
+		t.Fatal("struct should not match ctags kind f")
+	}
+}
